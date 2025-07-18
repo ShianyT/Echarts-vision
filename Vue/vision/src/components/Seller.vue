@@ -6,42 +6,201 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted } from 'vue'
+import { ref, getCurrentInstance, onMounted, onBeforeUnmount } from 'vue'
 const { proxy } = getCurrentInstance()
 
-let seller_ref = ref(null)
 
+// 挂载钩子
 onMounted(() => {
-  this.initChart()
-  this.getDate()
+  initChart()
+  getDate()
+  // 在界面加载完成之后主动进行屏幕大小适配
+  screenAdapter()
+  window.addEventListener('resize',screenAdapter)
+})
+// 卸载前钩子
+onBeforeUnmount(() => {
+  clearInterval(timerId)
+  // 在组件销毁时，将监听器取消掉
+  window.removeEventListener('resize',screenAdapter)
 })
 
+let seller_ref = ref(null)
 let chartInstance = null
-let allData = null
+let allData = null // 服务器返回的数据
+let currentPage = 1 // 当前显示的页数
+let totalPage = 0 // 总页数，计算获取
+let timerId = null // 定时器id
+
 // 初始化echartInstance对象
 function initChart() {
-  chartInstance = proxy.$echarts.init(seller_ref.value)
+  chartInstance = proxy.$echarts.init(seller_ref.value, 'chalk')
+  // 对图表初始化配置的控制
+  const initOption = {
+    title: {
+      text: '商家销售统计',
+      left: 20,
+      top: 20,
+    },
+    // 坐标轴大小 位置
+    grid: {
+      top: '20%',
+      left: '5%',
+      right: '8%',
+      bottom: '10%',
+      containLabel: true, // 是否包含坐标轴上的文字
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 250,
+    },
+    yAxis: {
+      type: 'category',
+    },
+    // 提示框tooltip
+    tooltip: {
+      // 触发类型：item 数据项图形触发 axis 坐标轴触发
+      trigger: 'axis',
+      // 坐标轴指示器配置项
+      axisPointer: {
+        type: 'line',
+        // 前后层级，过高会遮挡条目
+        z: 0,
+        // type为line时有效
+        lineStyle: {
+          // 线的类型，不指定会是虚线
+          type: 'solid',
+          color: '#2D3440',
+        },
+      },
+    },
+    series: [
+      {
+        type: 'bar',
+        // 标签文字的控制
+        label: {
+          show: true,
+          position: 'right',
+          textStyle: {
+            color: 'white',
+          },
+        },
+        itemStyle: {
+          // barBorderRadius: [0, id, id, 0],
+          // echarts内置的颜色渐变器
+          // new proxy.$echarts.graphic.LinearGradient(x1, y1, x2, y2, []) 两点确定射线
+          color: new proxy.$echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            // 根据百分比来设置颜色渐变情况
+            // 状态为0时
+            {
+              offset: 0,
+              color: '#8fd3e8',
+            },
+            {
+              offset: 0.7,
+              color: '#edafda',
+            },
+            // 状态为100时
+            {
+              offset: 1,
+              color: '#e098c7',
+            },
+          ]),
+        },
+      },
+    ],
+  }
+  chartInstance.setOption(initOption)
+
+  // 对鼠标事件进行监听
+  chartInstance.on('mouseover', () => {
+    clearInterval(timerId)
+  })
+  chartInstance.on('mouseout', () => {
+    startInterval()
+  })
 }
 
 // 获取服务器数据
 async function getDate() {
-  const { data: allData } = await proxy.$http.get('seller')
-  this.updateChart()
+  // 发送axios请求
+  const { data: ret } = await proxy.$http.get('seller')
+  allData = ret
+  allData.sort((a, b) => {
+    return a.value - b.value // 从小到大排序
+  })
+  totalPage = Math.ceil(allData.length / 5) // 向上取整函数
+  updateChart()
+  // 启动定时器
+  startInterval()
 }
 
 // 更新图表
 function updateChart() {
-  // 绘制图表
-  const option = {
-    xAxis: {},
-    yAxis: {},
-    serise: [
+  const showData = allData.slice((currentPage - 1) * 5, currentPage * 5)
+  // 使用map和解构赋值将其对象数组分离出来
+  const sellerNames = showData.map(({ name }) => name)
+  const sellerValues = showData.map(({ value }) => value)
+
+  // 对获取的数据进行配置
+  const dataOption = {
+    yAxis: {
+      data: sellerNames,
+    },
+    series: [
       {
-        type: 'bar',
+        data: sellerValues,
       },
     ],
   }
-  this.chartInstance.setOption(option)
+  chartInstance.setOption(dataOption)
+}
+
+// 启动定时器
+function startInterval() {
+  if (timerId) clearInterval(timerId)
+  timerId = setInterval(() => {
+    currentPage++
+    if (currentPage > totalPage) currentPage = 1
+    updateChart()
+  }, 3000)
+}
+
+// 浏览器发生大小变化适配器
+function screenAdapter() {
+  const width = seller_ref.value.offsetWidth
+  const size = (width / 100) * 3.6
+  // 分辨率大小相关配置项
+  const adapterOption = {
+    title: {
+      // 字体大小和位置
+      textStyle: {
+        fontSize: size,
+      },
+    },
+    // 提示框tooltip
+    tooltip: {
+      axisPointer: {
+        lineStyle: {
+          width: size,
+        },
+      },
+    },
+    series: [
+      {
+        // 柱状条目的宽度
+        barWidth: size,
+        itemStyle: {
+          // 柱状条目的圆角设置
+          borderRadius: [0, size / 2, size / 2, 0],
+        },
+      },
+    ],
+  }
+  chartInstance.setOption(adapterOption)
+  // 需手动调用实例对象的resize方法才能实时更新
+  chartInstance.resize()
 }
 </script>
 
