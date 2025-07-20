@@ -22,7 +22,7 @@ app.config.globalProperties.$echarts = window.echarts
 // 请求基准路径的配置
 axios.defaults.baseURL = 'http://127.0.0.1:8888/api/'
 // 全局挂载axios
-app.config.globalProperties.$http = axios
+app.config.globalProperties.$  = axios
 
 app.use(createPinia())
 app.use(router)
