@@ -7,6 +7,11 @@
 <script setup>
 import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
 const { proxy } = getCurrentInstance()
+
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
+
 let chartInstance = null
 let allData = null
 // 区域缩放的起点和终点值
@@ -18,7 +23,13 @@ const rank_ref = ref(null)
 
 onMounted(() => {
   initChart()
-  getData()
+    // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'rank',
+    value: '',
+  })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
 })
@@ -26,6 +37,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
   clearInterval(timerId)
+    // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
 function initChart() {
@@ -69,8 +82,8 @@ function initChart() {
   chartInstance.on('mouseout', startInterval)
 }
 
-async function getData() {
-  const { data: ret } = await proxy.$http.get('rank')
+async function getData(ret) {
+  // const { data: ret } = await proxy.$http.get('rank')
   allData = ret
   allData.sort((a, b) => {
     return b.value - a.value

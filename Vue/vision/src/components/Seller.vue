@@ -8,21 +8,32 @@
 <script setup>
 import { ref, getCurrentInstance, onMounted, onBeforeUnmount } from 'vue'
 const { proxy } = getCurrentInstance()
-
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
 
 // 挂载钩子
 onMounted(() => {
   initChart()
-  getDate()
+  // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'seller',
+    value: '',
+  })
   // 在界面加载完成之后主动进行屏幕大小适配
   screenAdapter()
-  window.addEventListener('resize',screenAdapter)
+  window.addEventListener('resize', screenAdapter)
 })
+
 // 卸载前钩子
 onBeforeUnmount(() => {
   clearInterval(timerId)
   // 在组件销毁时，将监听器取消掉
-  window.removeEventListener('resize',screenAdapter)
+  window.removeEventListener('resize', screenAdapter)
+  // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
 let seller_ref = ref(null)
@@ -123,9 +134,9 @@ function initChart() {
 }
 
 // 获取服务器数据
-async function getDate() {
-  // 发送axios请求
-  const { data: ret } = await proxy.$http.get('seller')
+async function getData(ret) {
+
+  // const { data: ret } = await proxy.$http.get('seller')
   allData = ret
   allData.sort((a, b) => {
     return a.value - b.value // 从小到大排序

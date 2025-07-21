@@ -8,6 +8,10 @@
 import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
 
 const { proxy } = getCurrentInstance()
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
+
 const stock_ref = ref(null)
 let chartInstance = null
 let allData = null
@@ -16,7 +20,13 @@ let timerId = null
 
 onMounted(() => {
   initChart()
-  getData()
+  // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'stock',
+    value: '',
+  })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
 })
@@ -24,6 +34,8 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
   clearInterval(timerId)
+    // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
 function initChart() {
@@ -42,10 +54,9 @@ function initChart() {
   chartInstance.on('mouseout', startInterval)
 }
 
-async function getData() {
-  const { data: ret } = await proxy.$http.get('stock')
+async function getData(ret) {
+  // const { data: ret } = await proxy.$http.get('stock')
   allData = ret
-  console.log(allData)
 
   updateChart()
   startInterval()
@@ -127,8 +138,8 @@ function screenAdapter() {
       type: 'pie',
       radius: [size * 2, size * 1.7],
       label: {
-        fontSize: size / 2,
-        lineHeight: size / 1.2,
+        fontSize: size / 2.5,
+        lineHeight: size / 1.5,
       },
     }
   })

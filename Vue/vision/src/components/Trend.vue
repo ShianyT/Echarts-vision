@@ -29,18 +29,30 @@
 
 <script setup>
 import { computed, getCurrentInstance, onMounted, onUnmounted, ref } from 'vue'
+const { proxy } = getCurrentInstance()
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
 
 onMounted(() => {
   initChart()
-  getData()
+  // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'trend',
+    value: '',
+  })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
 })
+
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
+  // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
-const { proxy } = getCurrentInstance()
 // 获取选择标题的类型
 /*
 computed():计算属性
@@ -96,9 +108,9 @@ function initChart() {
   }
   chartInstance.setOption(initOption)
 }
-
-async function getData() {
-  const { data: ret } = await proxy.$http.get('trend')
+// ret:服务端发送给客户端的数据
+function getData(ret) {
+  // const { data: ret } = await proxy.$http.get('trend')
   allData.value = ret
   choiceType.value = allData.value.type[0].key
   title.value = allData.value.type[0].text

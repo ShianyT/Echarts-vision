@@ -1,0 +1,31 @@
+const fileUtils = require("../utils/file_utils")
+const path = require("path")
+const WebSocket = require("ws")
+const wss = new WebSocket.Server({
+  port: 9998,
+})
+
+// 服务端开启监听
+module.exports.listen = () => {
+  wss.on("connection", (client) => {
+    client.on("message", async (msg) => {
+      let payload = JSON.parse(msg)
+      const action = payload.action
+      if (action === "getData") {
+        let filePath = `../data/${payload.chartName}.json`
+        filePath = path.join(__dirname, filePath)
+        const ret = await fileUtils.getFileJsonData(filePath)
+
+        // 在获取的数据的基础上添加data字段
+        payload.data = ret
+        // 发送数据
+        client.send(JSON.stringify(payload))
+      } else {
+        // 原封不动将所接收数据转发回去
+        wss.clients.forEach((client) => {
+          client.send(msg)
+        })
+      }
+    })
+  })
+}

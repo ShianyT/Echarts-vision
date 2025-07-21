@@ -20,6 +20,10 @@
 <script setup>
 import { ref, getCurrentInstance, onMounted, onUnmounted, computed } from 'vue'
 const { proxy } = getCurrentInstance()
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
+
 const hot_ref = ref(null)
 let chartInstance = null
 let allData = ref(null)
@@ -30,27 +34,24 @@ let secondTitleName = computed(() => {
 })
 let size = ref(40)
 
-function switchLeft() {
-  typeIndex.value--
-  if (typeIndex.value < 0) typeIndex.value = allData.value.length
-  updateChart()
-}
-
-function switchRight() {
-  typeIndex.value++
-  if (typeIndex.value >= allData.value.length) typeIndex.value = 0
-  updateChart()
-}
-
 onMounted(() => {
   initChart()
-  getData()
+  // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'hotproduct',
+    value: '',
+  })
+  // getData()
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
+  // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
 function initChart() {
@@ -84,8 +85,8 @@ function initChart() {
   chartInstance.setOption(initOption)
 }
 
-async function getData() {
-  const { data: ret } = await proxy.$http.get('hotproduct')
+async function getData(ret) {
+  // const { data: ret } = await proxy.$http.get('hotproduct')
   allData.value = ret
   updateChart()
 }
@@ -141,6 +142,18 @@ function screenAdapter() {
   }
   chartInstance.setOption(adapterOption)
   chartInstance.resize()
+}
+
+function switchLeft() {
+  typeIndex.value--
+  if (typeIndex.value < 0) typeIndex.value = allData.value.length
+  updateChart()
+}
+
+function switchRight() {
+  typeIndex.value++
+  if (typeIndex.value >= allData.value.length) typeIndex.value = 0
+  updateChart()
 }
 </script>
 

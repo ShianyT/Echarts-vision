@@ -10,6 +10,11 @@ import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
 import { getProvinceMapInfo } from '@/utils/map_utils.js'
 
 const { proxy } = getCurrentInstance()
+
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
+// 注册回调函数
+proxy.$socket.registerCallBack(fileName, getData)
+
 let chartInstance = null
 let map_ref = ref(null)
 let allData = null
@@ -18,13 +23,21 @@ let mapData = {}
 
 onMounted(() => {
   initChart()
-  getData()
+  // 发送数据给服务器
+  proxy.$socket.send({
+    action: 'getData',
+    socketType: fileName,
+    chartName: 'map',
+    value: '',
+  })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
+    // 取消回调函数
+  proxy.$socket.unRegisterCallBack(fileName)
 })
 
 async function initChart() {
@@ -101,8 +114,8 @@ async function initChart() {
   })
 }
 
-async function getData() {
-  const { data: ret } = await proxy.$http.get('map')
+async function getData(ret) {
+  // const { data: ret } = await proxy.$http.get('map')
   allData = ret
   console.log(allData)
   updateChart()

@@ -15,15 +15,7 @@ app.use(responseData)
 // 3.设置端口号8888
 app.listen(8888)
 
-const WebSocket = require("ws")
-const wss = new WebSocket.Server({
-  port: 9998,
-})
-wss.on("connection", (client) => {
-  console.log("连接成功...")
 
-  client.on("message", (msg) => {
-    console.log("客户端发送数据...")
-  })
-  client.send("发送数据!")
-})
+const webSocketService = require('./service/web_socket_service')
+// 开启服务端监听
+webSocketService.listen()

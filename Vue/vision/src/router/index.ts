@@ -5,6 +5,7 @@ import MapPage from '@/views/MapPage.vue'
 import RankPage from '@/views/RankPage.vue'
 import HotPage from '@/views/HotPage.vue'
 import StockPage from '@/views/StockPage.vue'
+import ScreenPage from '@/views/ScreenPage.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,13 +27,21 @@ const router = createRouter({
       component: RankPage,
     },
     {
-      path:'/hotpage',
-      component:HotPage
+      path: '/hotpage',
+      component: HotPage,
     },
     {
-      path:'/stockpage',
-      component:StockPage
-    }
+      path: '/stockpage',
+      component: StockPage,
+    },
+    {
+      path: '/',
+      component: ScreenPage,
+    },
+    {
+      path: '/screen',
+      component: ScreenPage,
+    },
   ],
 })
 

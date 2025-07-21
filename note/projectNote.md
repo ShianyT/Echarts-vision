@@ -146,4 +146,23 @@
 
 三、WebSocket的引入
 
+* 后端改造：
+  * 创建web_socket_service.js
+  * 服务端接受数据字段约定
+  * 服务端发送数据字段约定
+
+* 前端改造：
+  * 创建socket_service.ts
+    * 定义SocketService，并定义成单例设计模式
+    * 连接服务器方法connect
+    * 监听ws事件
+    * 存储回调函数：callBackMapping
+    * 接收数据的处理：onmessage
+    * 发送数据：send（data）
+    * 挂载SocketService对象到Vue原型对象上（可以通过proxy.$socket的方式很方便的获取SocketService实例对象）
+  * 组件改造
+    * onMounted：注册回调函数
+    * onUnmounted：取消回调函数
+    * 在原本获取数据的地方，改为发送数据
+
 四、细节处理
