@@ -1,29 +1,24 @@
 <template>
   <div class="com-container">
     <div class="com-chart" ref="hot_ref"></div>
-    <span
-      class="iconfont switch-icon switch-left"
-      @click="switchLeft()"
-      :style="{ fontSize: size + 'px' }"
+    <span class="iconfont switch-icon switch-left" @click="switchLeft()" :style="comStyle"
       >&#xe6ef;
     </span>
-    <span
-      class="iconfont switch-icon switch-right"
-      @click="switchRight()"
-      :style="{ fontSize: size + 'px' }"
+    <span class="iconfont switch-icon switch-right" @click="switchRight()" :style="comStyle"
       >&#xe6ed;</span
     >
-    <div class="second-title" :style="{ fontSize: size + 'px' }">{{ secondTitleName }}</div>
+    <div class="second-title" :style="comStyle">{{ secondTitleName }}</div>
   </div>
 </template>
 
 <script setup>
 import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+import { getThemeValue } from '@/utils/theme_utils'
 // 获取theme的数据
 import { useThemeStore } from '@/stores/theme'
 const theme = computed(() => useThemeStore().theme)
 // 监听主题theme
-watch(theme,() => {
+watch(theme, () => {
   chartInstance.dispose() // 销毁当前图表
   initChart() // 重新初始化图表
   screenAdapter() // 重新适配屏幕
@@ -45,6 +40,14 @@ let secondTitleName = computed(() => {
 })
 
 let size = ref(0)
+
+// 动态绑定样式
+const comStyle = computed(() => {
+  return {
+    fontSize: size.value + 'px',
+    color: getThemeValue(theme.value).titleColor,
+  }
+})
 
 onMounted(() => {
   initChart()

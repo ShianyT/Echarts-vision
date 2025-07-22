@@ -1,15 +1,15 @@
 <template>
-  <div class="screen-container">
+  <div class="screen-container" :style="containerStyle">
     <header class="screen-header">
       <div>
-        <img src="/static/img/header_border_dark.png" alt="" />
+        <img :src="path + theme.headerBorderSrc" alt="" />
       </div>
       <span class="logo">
-        <img src="/static/img/logo_dark.png" alt="" />
+        <img :src="path + theme.logoSrc" alt="" />
       </span>
       <span class="title">电商平台实时监控系统</span>
       <div class="title-right">
-        <img src="/static/img/qiehuan_dark.png" class="qiehuan" @click="handleChangeTheme" />
+        <img :src="path + theme.themeSrc" class="qiehuan" @click="handleChangeTheme" />
         <span class="datetime">2025-07-21 00:00:00</span>
       </div>
     </header>
@@ -102,8 +102,21 @@ import Rank from '@/components/Rank.vue'
 import Seller from '@/components/Seller.vue'
 import Stock from '@/components/Stock.vue'
 import Trend from '@/components/Trend.vue'
-import { ref, nextTick, reactive, getCurrentInstance, onUnmounted } from 'vue'
+import { ref, nextTick, reactive, getCurrentInstance, onUnmounted, computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { getThemeValue } from '@/utils/theme_utils'
+
+// 获取不同主题的信息
+const theme = computed(() => {
+  return getThemeValue(useThemeStore().theme)
+})
+const path = ref('/static/img/')
+const containerStyle = computed(() => {
+  return {
+    backgroundColor: theme.value.backgroundColor,
+    color: theme.value.titleColor,
+  }
+})
 
 let fullScreenStatus = ref({
   hot: false,
@@ -125,8 +138,10 @@ const setRef = (el, name) => {
 }
 
 proxy.$socket.registerCallBack('fullScreen', recvData)
+proxy.$socket.registerCallBack('themeChange', recvThemeChange)
 onUnmounted(() => {
   proxy.$socket.unRegisterCallBack('fullScreen')
+  proxy.$socket.unRegisterCallBack('themeChange')
 })
 
 function changeSize(chartName) {
@@ -153,6 +168,16 @@ async function recvData(ret) {
 //主题切换
 function handleChangeTheme() {
   // 调用store中定义的主题切换函数
+  // useThemeStore().changeTheme()
+  proxy.$socket.send({
+    action: 'themeChange',
+    socketType: 'themeChange',
+    chartName: '',
+    vlaue: '',
+  })
+}
+
+function recvThemeChange(ret) {
   useThemeStore().changeTheme()
 }
 </script>

@@ -1,18 +1,15 @@
 <template>
   <div class="com-container">
     <!-- 切换折线图选项 -->
-    <div class="title" :style="{ fontSize: fontSize + 'px', fontWeight: 700 }">
+    <div class="title" :style="comStyle">
       <span>{{ title }}</span>
       <!-- 原本采用伪元素选择器来实现下拉箭头，但由于点击事件不好实现，故采用添加一个span来实现
       若采用伪元素选择器来实现，需注意：
       使用伪元素插入unicode字符时，若写成 &#xe6eb 会显示为原始编码，并不会进行渲染，需改成十六进制的形式，即去掉 &#x 前缀，加反斜杠 /  -->
-      <span
-        class="iconfont title-icon"
-        @click="showChoice = !showChoice"
-        :style="{ fontSize: fontSize + 'px' }"
+      <span class="iconfont title-icon" @click="showChoice = !showChoice" :style="comStyle"
         >&#xe6eb;</span
       >
-      <div class="select-con" v-show="showChoice">
+      <div class="select-con" v-show="showChoice" >
         <div
           class="select-item"
           v-for="item in selectTypes"
@@ -29,6 +26,7 @@
 
 <script setup>
 import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+import { getThemeValue } from '@/utils/theme_utils'
 // 获取theme的数据
 import { useThemeStore } from '@/stores/theme'
 const theme = computed(() => useThemeStore().theme)
@@ -43,6 +41,20 @@ const { proxy } = getCurrentInstance()
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
 // 注册回调函数
 proxy.$socket.registerCallBack(fileName, getData)
+
+const comStyle = computed(() => {
+  return {
+    fontSize: fontSize.value + 'px',
+
+    color: getThemeValue(theme.value).titleColor,
+  }
+})
+
+const comStyle2 = computed(() => {
+  return {
+    backgroundColor: getThemeValue(theme.value).backgroundColor,
+  }
+})
 
 onMounted(() => {
   initChart()
@@ -244,7 +256,7 @@ defineExpose({
   z-index: 10;
   left: 20px;
   top: 20px;
-  color: white;
+  font-weight: 700;
 }
 
 .title-icon {
@@ -252,9 +264,6 @@ defineExpose({
   cursor: pointer;
 }
 
-.select-con {
-  background-color: #222733;
-}
 
 .select-item {
   cursor: pointer;
