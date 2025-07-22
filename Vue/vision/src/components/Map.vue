@@ -6,10 +6,20 @@
 
 <script setup>
 import axios from 'axios'
-import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { ref, getCurrentInstance, onMounted, onUnmounted,computed, watch } from 'vue'
 import { getProvinceMapInfo } from '@/utils/map_utils.js'
-
 const { proxy } = getCurrentInstance()
+
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme,() => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
 
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
 // 注册回调函数
@@ -36,12 +46,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
-    // 取消回调函数
+  // 取消回调函数
   proxy.$socket.unRegisterCallBack(fileName)
 })
 
 async function initChart() {
-  chartInstance = proxy.$echarts.init(map_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(map_ref.value, theme.value)
   // 获取中国地图的矢量数据
   // http://hocalhost:8999/static/map/china.json
   // 由于proxy.$http配置的是koa后台路径，故这里无法使用proxy.$http来获取
@@ -51,7 +61,7 @@ async function initChart() {
   const initOption = {
     title: {
       text: '商家分布地图',
-      left: 30,
+      left: 20,
       top: 20,
     },
     geo: {
@@ -84,9 +94,7 @@ async function initChart() {
       left: '5%',
       // 图例列表的布局朝向。'horizontal'横向排列  'vertical'竖向排列
       orient: 'vertical',
-      textStyle: {
-        color: '#fff',
-      },
+
     },
   }
   chartInstance.setOption(initOption)
@@ -117,7 +125,6 @@ async function initChart() {
 async function getData(ret) {
   // const { data: ret } = await proxy.$http.get('map')
   allData = ret
-  console.log(allData)
   updateChart()
 }
 
@@ -152,19 +159,20 @@ function updateChart() {
 }
 
 function screenAdapter() {
-  const size = (map_ref.value.offsetWidth / 100) * 1.6
+  const size = (map_ref.value.offsetWidth / 100) * 3.6
   const adapterOption = {
     title: {
       textStyle: {
-        fontSize: size * 2,
+        fontSize: size,
       },
     },
+
     legend: {
-      itemGap: size,
-      itemWidth: size,
-      itemHeight: size,
+      itemGap: size / 2,
+      itemWidth: size / 2,
+      itemHeight: size / 2,
       textStyle: {
-        fontSize: size / 1.2,
+        fontSize: size / 2,
       },
     },
   }
@@ -181,6 +189,10 @@ function revertMap() {
   }
   chartInstance.setOption(revertOption)
 }
+
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped></style>

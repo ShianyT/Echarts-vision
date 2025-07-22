@@ -41,12 +41,14 @@ export default class SocketService {
       this.connectRetryCount++
       if (this.connectRetryCount < 20) {
         setTimeout(() => {
-          this.connect
+          this.connect()
         }, this.connectRetryCount * 500)
       }
     }
     // 接受数据
     this.ws.onmessage = (msg) => {
+      // console.log(msg.data)
+
       const recvData = JSON.parse(msg.data)
       const socketType = recvData.socketType
       if (this.callBackMapping[socketType]) {
@@ -55,6 +57,7 @@ export default class SocketService {
           const realData = JSON.parse(recvData.data)
           this.callBackMapping[socketType].call(this, realData)
         } else if (action === 'fullScreen') {
+          this.callBackMapping[socketType].call(this, recvData)
         } else if (action === 'themeChange') {
         }
       }
@@ -77,6 +80,7 @@ export default class SocketService {
       // 当发送成功后，重试次数重置
       this.sendRetryCount = 0
       this.ws?.send(JSON.stringify(data))
+      
     } catch (error) {
       // 每次重试都加一次次数，再次重试的事件依次递增，减少开销
       this.sendRetryCount++

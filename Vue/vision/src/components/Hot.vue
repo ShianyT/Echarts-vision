@@ -13,15 +13,26 @@
       :style="{ fontSize: size + 'px' }"
       >&#xe6ed;</span
     >
-    <div class="second-title" :style="{ fontSize: size / 1.5 + 'px' }">{{ secondTitleName }}</div>
+    <div class="second-title" :style="{ fontSize: size + 'px' }">{{ secondTitleName }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted, computed } from 'vue'
+import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme,() => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
+
 const { proxy } = getCurrentInstance()
+// 获取文件名，注册回调函数
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
-// 注册回调函数
 proxy.$socket.registerCallBack(fileName, getData)
 
 const hot_ref = ref(null)
@@ -32,7 +43,8 @@ let secondTitleName = computed(() => {
   if (!allData.value) return ''
   return allData.value[typeIndex.value].name
 })
-let size = ref(40)
+
+let size = ref(0)
 
 onMounted(() => {
   initChart()
@@ -43,9 +55,8 @@ onMounted(() => {
     chartName: 'hotproduct',
     value: '',
   })
-  // getData()
-  window.addEventListener('resize', screenAdapter)
   screenAdapter()
+  window.addEventListener('resize', screenAdapter)
 })
 
 onUnmounted(() => {
@@ -55,7 +66,7 @@ onUnmounted(() => {
 })
 
 function initChart() {
-  chartInstance = proxy.$echarts.init(hot_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(hot_ref.value, theme.value)
   const initOption = {
     title: {
       text: '热销商品销售额统计',
@@ -63,7 +74,7 @@ function initChart() {
       top: 20,
     },
     legend: {
-      top: '15%',
+      top: '17%',
       icon: 'circle',
     },
     series: [
@@ -124,7 +135,8 @@ function updateChart() {
 }
 
 function screenAdapter() {
-  size.value = (hot_ref.value.offsetWidth / 100) * 2.8
+  size.value = (hot_ref.value.offsetWidth / 100) * 3.6
+
   const adapterOption = {
     title: {
       textStyle: {
@@ -133,12 +145,28 @@ function screenAdapter() {
     },
     legend: {
       textStyle: {
-        fontSize: size.value / 2,
+        fontSize: size.value / 1.6,
       },
-      itemWidth: size.value / 2,
+      itemWidth: size.value / 1.6,
       itemHeight: size.value,
-      itemGap: size.value,
+      itemGap: size.value / 1.2,
     },
+    series: [
+      {
+        type: 'pie',
+        radius: size.value * 3.5,
+        emphasis: {
+          label: {
+            textStyle: {
+              fontSize: size.value / 2,
+            },
+          },
+          labelLine: {
+            show: false,
+          },
+        },
+      },
+    ],
   }
   chartInstance.setOption(adapterOption)
   chartInstance.resize()
@@ -155,6 +183,9 @@ function switchRight() {
   if (typeIndex.value >= allData.value.length) typeIndex.value = 0
   updateChart()
 }
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped>
@@ -168,10 +199,10 @@ function switchRight() {
 }
 
 .switch-left {
-  left: 8%;
+  left: 5%;
 }
 .switch-right {
-  right: 8%;
+  right: 5%;
 }
 
 .second-title {

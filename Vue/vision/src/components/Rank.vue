@@ -5,7 +5,17 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme, () => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
 const { proxy } = getCurrentInstance()
 
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
@@ -23,7 +33,7 @@ const rank_ref = ref(null)
 
 onMounted(() => {
   initChart()
-    // 发送数据给服务器
+  // 发送数据给服务器
   proxy.$socket.send({
     action: 'getData',
     socketType: fileName,
@@ -37,12 +47,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
   clearInterval(timerId)
-    // 取消回调函数
+  // 取消回调函数
   proxy.$socket.unRegisterCallBack(fileName)
 })
 
 function initChart() {
-  chartInstance = proxy.$echarts.init(rank_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(rank_ref.value, theme.value)
   const initOption = {
     title: {
       text: '地区销售排行',
@@ -51,10 +61,10 @@ function initChart() {
     },
     // 只在直角坐标系中有效
     grid: {
-      top: '23%',
+      top: '35%',
       left: '8%',
-      bottom: '12%',
-      right: '10%',
+      bottom: '5%',
+      right: '8%',
       containLabel: true,
     },
     tooltip: {
@@ -64,6 +74,10 @@ function initChart() {
       type: 'category',
     },
     yAxis: {
+      name: '销售额/万元',
+      nameTextStyle: {
+        color: '#aaaaaa',
+      },
       type: 'value',
       interval: 80,
       min: 0,
@@ -148,6 +162,19 @@ function screenAdapter() {
         fontSize: size,
       },
     },
+    xAxis: {
+      axisLabel: {
+        fontSize: size / 2.5,
+      },
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: size / 2.8,
+      },
+      nameTextStyle: {
+        fontSize: size / 2.5,
+      },
+    },
     series: [
       {
         barWidth: size,
@@ -173,6 +200,10 @@ function startInterval() {
     updateChart()
   }, 2000)
 }
+
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped></style>

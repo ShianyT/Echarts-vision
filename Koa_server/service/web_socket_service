@@ -9,6 +9,7 @@ const wss = new WebSocket.Server({
 module.exports.listen = () => {
   wss.on("connection", (client) => {
     client.on("message", async (msg) => {
+      
       let payload = JSON.parse(msg)
       const action = payload.action
       if (action === "getData") {
@@ -23,7 +24,9 @@ module.exports.listen = () => {
       } else {
         // 原封不动将所接收数据转发回去
         wss.clients.forEach((client) => {
-          client.send(msg)
+          // console.log()
+          // TODO 为何要先解析才可以？
+          client.send(JSON.stringify(JSON.parse(msg))) 
         })
       }
     })

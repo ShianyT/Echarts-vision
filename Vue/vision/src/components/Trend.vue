@@ -1,7 +1,7 @@
 <template>
   <div class="com-container">
     <!-- 切换折线图选项 -->
-    <div class="title" :style="{ fontSize: fontSize * 1.5 + 'px' }">
+    <div class="title" :style="{ fontSize: fontSize + 'px', fontWeight: 700 }">
       <span>{{ title }}</span>
       <!-- 原本采用伪元素选择器来实现下拉箭头，但由于点击事件不好实现，故采用添加一个span来实现
       若采用伪元素选择器来实现，需注意：
@@ -28,7 +28,17 @@
 </template>
 
 <script setup>
-import { computed, getCurrentInstance, onMounted, onUnmounted, ref } from 'vue'
+import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme, () => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
 const { proxy } = getCurrentInstance()
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
 // 注册回调函数
@@ -81,13 +91,13 @@ let title = ref('')
 let fontSize = ref(40)
 
 function initChart() {
-  chartInstance = proxy.$echarts.init(trend_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(trend_ref.value, theme.value)
   const initOption = {
     grid: {
-      top: '25%',
-      left: '10%',
-      right: '10%',
-      bottom: '10%',
+      top: '30%',
+      left: '8%',
+      right: '8%',
+      bottom: '8%',
       contianLabel: true,
     },
     tooltip: {
@@ -95,7 +105,7 @@ function initChart() {
     },
     legend: {
       right: '10%',
-      top: '10%',
+      top: '12%',
     },
     xAxis: {
       type: 'category',
@@ -103,6 +113,7 @@ function initChart() {
       boundaryGap: false,
     },
     yAxis: {
+      name: '销量/万件',
       type: 'value',
     },
   }
@@ -184,14 +195,28 @@ function updateChart() {
 
 function screenAdapter() {
   // 这里的系数大小自定义
-  fontSize.value = (trend_ref.value.offsetWidth / 100) * 1.4
+  fontSize.value = (trend_ref.value.offsetWidth / 100) * 3.6
   const adapterOption = {
+    xAxis: {
+      axisLabel: {
+        fontSize: fontSize.value / 2.8,
+      },
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: fontSize.value / 2.8,
+      },
+      nameTextStyle: {
+        fontSize: fontSize.value / 2.5,
+        color: '#aaaaaa',
+      },
+    },
     legend: {
-      itemWidth: fontSize.value,
-      itemHeight: fontSize.value,
+      itemWidth: fontSize.value / 1.6,
+      itemHeight: fontSize.value / 2,
       itemGap: fontSize.value,
       textStyle: {
-        fontSize: fontSize.value,
+        fontSize: fontSize.value / 1.6,
       },
     },
   }
@@ -207,13 +232,17 @@ function handleClick(currentType, currentTitle) {
   // 点击选项后隐藏下拉框
   showChoice.value = false
 }
+
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped>
 .title {
   position: absolute;
   z-index: 10;
-  left: 30px;
+  left: 20px;
   top: 20px;
   color: white;
 }
@@ -221,6 +250,10 @@ function handleClick(currentType, currentTitle) {
 .title-icon {
   margin-left: 10px;
   cursor: pointer;
+}
+
+.select-con {
+  background-color: #222733;
 }
 
 .select-item {

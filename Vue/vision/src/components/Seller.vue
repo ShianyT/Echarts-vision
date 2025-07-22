@@ -6,7 +6,18 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted, onBeforeUnmount } from 'vue'
+import { ref, getCurrentInstance, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme, () => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
+
 const { proxy } = getCurrentInstance()
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
 // 注册回调函数
@@ -45,7 +56,7 @@ let timerId = null // 定时器id
 
 // 初始化echartInstance对象
 function initChart() {
-  chartInstance = proxy.$echarts.init(seller_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(seller_ref.value, theme.value)
   // 对图表初始化配置的控制
   const initOption = {
     title: {
@@ -57,11 +68,12 @@ function initChart() {
     grid: {
       top: '20%',
       left: '5%',
-      right: '8%',
-      bottom: '10%',
+      right: '12%',
+      bottom: '5%',
       containLabel: true, // 是否包含坐标轴上的文字
     },
     xAxis: {
+      name: '销售额/万元',
       type: 'value',
       min: 0,
       max: 250,
@@ -135,7 +147,6 @@ function initChart() {
 
 // 获取服务器数据
 async function getData(ret) {
-
   // const { data: ret } = await proxy.$http.get('seller')
   allData = ret
   allData.sort((a, b) => {
@@ -180,14 +191,27 @@ function startInterval() {
 
 // 浏览器发生大小变化适配器
 function screenAdapter() {
-  const width = seller_ref.value.offsetWidth
-  const size = (width / 100) * 3.6
+  const size = (seller_ref.value.offsetWidth / 100) * 3.6
   // 分辨率大小相关配置项
   const adapterOption = {
     title: {
       // 字体大小和位置
       textStyle: {
         fontSize: size,
+      },
+    },
+    xAxis: {
+      axisLabel: {
+        fontSize: size / 2.8,
+      },
+      nameTextStyle: {
+        fontSize: size / 2.5,
+        color: '#aaaaaa',
+      },
+    },
+    yAxis: {
+      axisLabel: {
+        fontSize: size / 2,
       },
     },
     // 提示框tooltip
@@ -206,6 +230,10 @@ function screenAdapter() {
           // 柱状条目的圆角设置
           borderRadius: [0, size / 2, size / 2, 0],
         },
+
+        label: {
+          fontSize: size / 2.8,
+        },
       },
     ],
   }
@@ -213,6 +241,9 @@ function screenAdapter() {
   // 需手动调用实例对象的resize方法才能实时更新
   chartInstance.resize()
 }
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped></style>

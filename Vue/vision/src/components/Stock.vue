@@ -5,7 +5,17 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted } from 'vue'
+import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+// 获取theme的数据
+import { useThemeStore } from '@/stores/theme'
+const theme = computed(() => useThemeStore().theme)
+// 监听主题theme
+watch(theme, () => {
+  chartInstance.dispose() // 销毁当前图表
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
 
 const { proxy } = getCurrentInstance()
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
@@ -39,7 +49,7 @@ onUnmounted(() => {
 })
 
 function initChart() {
-  chartInstance = proxy.$echarts.init(stock_ref.value, 'chalk')
+  chartInstance = proxy.$echarts.init(stock_ref.value, theme.value)
   const initOption = {
     title: {
       text: '库存销售量',
@@ -76,11 +86,10 @@ function updateChart() {
     let y = 35
     if (index >= 3) {
       x = 37 - 3 * 25
-      y = 70
+      y = 75
     }
     return {
       type: 'pie',
-      radius: [80, 67],
       center: [`${index * 25 + x}%`, `${y}%`],
       hoverAnimation: false,
       labelLine: {
@@ -136,9 +145,9 @@ function screenAdapter() {
   let adapterSeriesArr = Array.from({ length: 5 }, () => {
     return {
       type: 'pie',
-      radius: [size * 2, size * 1.7],
+      radius: [size * 2.3, size * 2],
       label: {
-        fontSize: size / 2.5,
+        fontSize: size / 2,
         lineHeight: size / 1.5,
       },
     }
@@ -164,6 +173,10 @@ function startInterval() {
     updateChart()
   }, 5000)
 }
+
+defineExpose({
+  screenAdapter,
+})
 </script>
 
 <style lang="less" scoped></style>
