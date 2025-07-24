@@ -5,29 +5,49 @@
   </div>
 </template>
 
-<script setup>
-import { ref, getCurrentInstance, onMounted, onBeforeUnmount, computed, watch } from 'vue'
-// 获取theme的数据
+<script setup lang="ts">
+import { ref, onMounted, onBeforeUnmount, computed, watch, inject } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+
+// ================= 类型声明 =================
+interface SellerItem {
+  name: string
+  value: number
+}
+interface SocketType {
+  registerCallBack: (key: string, cb: (data: any) => void) => void
+  unRegisterCallBack: (key: string) => void
+  send: (data: any) => void
+}
+
+// ================= inject全局依赖 =================
+const echarts = inject('echarts') as typeof import('echarts') | undefined
+const socket = inject('socket') as SocketType | undefined
+
+// ================= 响应式变量 =================
+const seller_ref = ref<HTMLElement | null>(null)
+let chartInstance: import('echarts').ECharts | null = null
+const allData = ref<SellerItem[]>([])
+let currentPage = 1 // 当前显示的页数
+let totalPage = 0 // 总页数，计算获取
+let timerId: ReturnType<typeof setInterval> | null = null // 定时器id
+
 const theme = computed(() => useThemeStore().theme)
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '') || ''
+
 // 监听主题theme
 watch(theme, () => {
-  chartInstance.dispose() // 销毁当前图表
+  chartInstance?.dispose() // 销毁当前图表
   initChart() // 重新初始化图表
   screenAdapter() // 重新适配屏幕
   updateChart() // 更新图表
 })
 
-const { proxy } = getCurrentInstance()
-const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
-// 注册回调函数
-proxy.$socket.registerCallBack(fileName, getData)
-
-// 挂载钩子
+// ================= 生命周期钩子 =================
 onMounted(() => {
   initChart()
   // 发送数据给服务器
-  proxy.$socket.send({
+  socket?.send({
     action: 'getData',
     socketType: fileName,
     chartName: 'seller',
@@ -36,27 +56,22 @@ onMounted(() => {
   // 在界面加载完成之后主动进行屏幕大小适配
   screenAdapter()
   window.addEventListener('resize', screenAdapter)
+  // 注册回调函数
+  socket?.registerCallBack(fileName, getData)
 })
 
-// 卸载前钩子
 onBeforeUnmount(() => {
-  clearInterval(timerId)
+  if (timerId) clearInterval(timerId)
   // 在组件销毁时，将监听器取消掉
   window.removeEventListener('resize', screenAdapter)
   // 取消回调函数
-  proxy.$socket.unRegisterCallBack(fileName)
+  socket?.unRegisterCallBack(fileName)
 })
 
-let seller_ref = ref(null)
-let chartInstance = null
-let allData = null // 服务器返回的数据
-let currentPage = 1 // 当前显示的页数
-let totalPage = 0 // 总页数，计算获取
-let timerId = null // 定时器id
-
-// 初始化echartInstance对象
+// ================= 图表初始化 =================
 function initChart() {
-  chartInstance = proxy.$echarts.init(seller_ref.value, theme.value)
+  if (!echarts || !seller_ref.value) return
+  chartInstance = echarts.init(seller_ref.value, theme.value as any)
   // 对图表初始化配置的控制
   const initOption = {
     title: {
@@ -112,24 +127,16 @@ function initChart() {
         itemStyle: {
           // barBorderRadius: [0, id, id, 0],
           // echarts内置的颜色渐变器
-          // new proxy.$echarts.graphic.LinearGradient(x1, y1, x2, y2, []) 两点确定射线
-          color: new proxy.$echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            // 根据百分比来设置颜色渐变情况
-            // 状态为0时
-            {
-              offset: 0,
-              color: '#8fd3e8',
-            },
-            {
-              offset: 0.7,
-              color: '#edafda',
-            },
-            // 状态为100时
-            {
-              offset: 1,
-              color: '#e098c7',
-            },
-          ]),
+          color: echarts
+            ? new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                // 根据百分比来设置颜色渐变情况
+                // 状态为0时
+                { offset: 0, color: '#8fd3e8' },
+                { offset: 0.7, color: '#edafda' },
+                // 状态为100时
+                { offset: 1, color: '#e098c7' },
+              ])
+            : '#8fd3e8',
         },
       },
     ],
@@ -138,29 +145,25 @@ function initChart() {
 
   // 对鼠标事件进行监听
   chartInstance.on('mouseover', () => {
-    clearInterval(timerId)
+    if (timerId) clearInterval(timerId)
   })
-  chartInstance.on('mouseout', () => {
-    startInterval()
-  })
+  chartInstance.on('mouseout', startInterval)
 }
 
-// 获取服务器数据
-async function getData(ret) {
+// ================= 数据获取回调 =================
+async function getData(ret: SellerItem[]) {
   // const { data: ret } = await proxy.$http.get('seller')
-  allData = ret
-  allData.sort((a, b) => {
-    return a.value - b.value // 从小到大排序
-  })
-  totalPage = Math.ceil(allData.length / 5) // 向上取整函数
+  allData.value = ret.sort((a, b) => a.value - b.value) // 从小到大排序
+  totalPage = Math.ceil(allData.value.length / 5) // 向上取整函数
   updateChart()
   // 启动定时器
   startInterval()
 }
 
-// 更新图表
+// ================= 图表数据更新 =================
 function updateChart() {
-  const showData = allData.slice((currentPage - 1) * 5, currentPage * 5)
+  if (!chartInstance || !allData.value.length) return
+  const showData = allData.value.slice((currentPage - 1) * 5, currentPage * 5)
   // 使用map和解构赋值将其对象数组分离出来
   const sellerNames = showData.map(({ name }) => name)
   const sellerValues = showData.map(({ value }) => value)
@@ -179,7 +182,7 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
-// 启动定时器
+// ================= 启动定时器 =================
 function startInterval() {
   if (timerId) clearInterval(timerId)
   timerId = setInterval(() => {
@@ -189,8 +192,9 @@ function startInterval() {
   }, 3000)
 }
 
-// 浏览器发生大小变化适配器
+// ================= 浏览器发生大小变化适配器 =================
 function screenAdapter() {
+  if (!chartInstance || !seller_ref.value) return
   const size = (seller_ref.value.offsetWidth / 100) * 3.6
   // 分辨率大小相关配置项
   const adapterOption = {
@@ -230,7 +234,6 @@ function screenAdapter() {
           // 柱状条目的圆角设置
           borderRadius: [0, size / 2, size / 2, 0],
         },
-
         label: {
           fontSize: size / 2.8,
         },

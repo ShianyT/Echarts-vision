@@ -9,7 +9,7 @@
       <span class="iconfont title-icon" @click="showChoice = !showChoice" :style="comStyle"
         >&#xe6eb;</span
       >
-      <div class="select-con" v-show="showChoice" >
+      <div class="select-con" v-show="showChoice">
         <div
           class="select-item"
           v-for="item in selectTypes"
@@ -263,7 +263,6 @@ defineExpose({
   margin-left: 10px;
   cursor: pointer;
 }
-
 
 .select-item {
   cursor: pointer;

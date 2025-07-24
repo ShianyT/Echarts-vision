@@ -10,7 +10,7 @@
       <span class="title">电商平台实时监控系统</span>
       <div class="title-right">
         <img :src="path + theme.themeSrc" class="qiehuan" @click="handleChangeTheme" />
-        <span class="datetime">2025-07-21 00:00:00</span>
+        <span class="datetime">{{ currentDateTime }}</span>
       </div>
     </header>
     <div class="screen-body">
@@ -95,21 +95,23 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import Hot from '@/components/Hot.vue'
 import Map from '@/components/Map.vue'
 import Rank from '@/components/Rank.vue'
 import Seller from '@/components/Seller.vue'
 import Stock from '@/components/Stock.vue'
 import Trend from '@/components/Trend.vue'
-import { ref, nextTick, reactive, getCurrentInstance, onUnmounted, computed } from 'vue'
+import { ref, nextTick, reactive, onUnmounted, computed, inject, onMounted } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { getThemeValue } from '@/utils/theme_utils'
+import dayjs from 'dayjs'
 
-// 获取不同主题的信息
-const theme = computed(() => {
-  return getThemeValue(useThemeStore().theme)
-})
+// ================= inject全局依赖 =================
+const socket = inject('socket') as any // 根据实际情况定义类型
+
+// ================= 计算属性 =================
+const theme = computed(() => getThemeValue(useThemeStore().theme as 'chalk' | 'vintage'))
 const path = ref('/static/img/')
 const containerStyle = computed(() => {
   return {
@@ -118,7 +120,10 @@ const containerStyle = computed(() => {
   }
 })
 
-let fullScreenStatus = ref({
+// ================= 响应式变量 =================
+const currentDateTime = ref('')
+let timerId: ReturnType<typeof setInterval> | null = null
+const fullScreenStatus = ref<Record<string, boolean>>({
   hot: false,
   map: false,
   rank: false,
@@ -126,29 +131,36 @@ let fullScreenStatus = ref({
   stock: false,
   trend: false,
 })
-const { proxy } = getCurrentInstance()
+const refs = reactive<Record<string, any>>({})
 
-// 定义响应式对象存储所有子组件
-const refs = reactive({})
 // 收集所有子组件
-const setRef = (el, name) => {
+const setRef = (el: any, name: string) => {
   if (el) {
     refs[name] = el
   }
 }
 
-proxy.$socket.registerCallBack('fullScreen', recvData)
-proxy.$socket.registerCallBack('themeChange', recvThemeChange)
-onUnmounted(() => {
-  proxy.$socket.unRegisterCallBack('fullScreen')
-  proxy.$socket.unRegisterCallBack('themeChange')
+// ================= 生命周期钩子 =================
+socket.registerCallBack('fullScreen', recvData)
+socket.registerCallBack('themeChange', recvThemeChange)
+
+onMounted(() => {
+  updateTime() // 初始化时间
+  // 设置定时器,每1秒计算一次，减少开销
+  timerId = setInterval(updateTime, 1000)
 })
 
-function changeSize(chartName) {
-  // 改变fullScreenStatus的数据
-  const targetValue = !fullScreenStatus.value[chartName]
+onUnmounted(() => {
+  socket.unRegisterCallBack('fullScreen')
+  socket.unRegisterCallBack('themeChange')
 
-  proxy.$socket.send({
+  if (timerId) clearInterval(timerId)
+})
+
+// ================= 事件处理 =================
+function changeSize(chartName: string) {
+  const targetValue = !fullScreenStatus.value[chartName]
+  socket.send({
     action: 'fullScreen',
     socketType: 'fullScreen',
     chartName: chartName,
@@ -156,7 +168,7 @@ function changeSize(chartName) {
   })
 }
 
-async function recvData(ret) {
+async function recvData(ret: { chartName: string; value: boolean }) {
   const chartName = ret.chartName
   // 更换全屏状态
   fullScreenStatus.value[chartName] = ret.value
@@ -165,11 +177,12 @@ async function recvData(ret) {
   // 调用该方法需将该方法显示暴露
   refs[chartName].screenAdapter()
 }
-//主题切换
+
+// 主题切换
 function handleChangeTheme() {
   // 调用store中定义的主题切换函数
   // useThemeStore().changeTheme()
-  proxy.$socket.send({
+  socket.send({
     action: 'themeChange',
     socketType: 'themeChange',
     chartName: '',
@@ -177,8 +190,13 @@ function handleChangeTheme() {
   })
 }
 
-function recvThemeChange(ret) {
+function recvThemeChange() {
   useThemeStore().changeTheme()
+}
+
+// 更新当前时间
+function updateTime() {
+  currentDateTime.value = dayjs().format('YYYY-MM-DD HH:mm:ss')
 }
 </script>
 
@@ -204,11 +222,12 @@ function recvThemeChange(ret) {
 }
 .screen-header {
   width: 100%;
-  height: 64px;
+  height: 65px;
   font-size: 20px;
   position: relative;
   > div {
     img {
+      padding-top: 5px;
       width: 100%;
     }
   }
@@ -238,12 +257,11 @@ function recvThemeChange(ret) {
   }
   .logo {
     position: absolute;
-    left: 0px;
-    top: 50%;
+    left: 20px;
+    top: 55%;
     transform: translateY(-80%);
     img {
-      height: 35px;
-      width: 128px;
+      height: 33px;
     }
   }
 }

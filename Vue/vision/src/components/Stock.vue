@@ -4,34 +4,50 @@
   </div>
 </template>
 
-<script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
-// 获取theme的数据
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+
+// ========类型声明===========
+interface StockItem {
+  name: string
+  stock: number
+  sales: number
+}
+
+interface SocketType {
+  registerCallBack: (key: string, cb: (data: any) => void) => void
+  unRegisterCallBack: (key: string) => void
+  send: (data: any) => void
+}
+
+// ========inject全局依赖=========
+const echarts = inject('echarts') as typeof import('echarts') | undefined
+const socket = inject('socket') as SocketType | undefined
+
+// 响应式变量
+const stock_ref = ref<HTMLElement | null>(null)
+let chartInstance: import('echarts').ECharts | null = null
+let allData = ref<StockItem[]>([])
+let index = 0
+let timerId: ReturnType<typeof setInterval> | null = null // 定时器id
+
 const theme = computed(() => useThemeStore().theme)
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '') || ''
+
 // 监听主题theme
 watch(theme, () => {
-  chartInstance.dispose() // 销毁当前图表
+  chartInstance?.dispose() // 销毁当前图表
   initChart() // 重新初始化图表
   screenAdapter() // 重新适配屏幕
   updateChart() // 更新图表
 })
 
-const { proxy } = getCurrentInstance()
-const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
-// 注册回调函数
-proxy.$socket.registerCallBack(fileName, getData)
-
-const stock_ref = ref(null)
-let chartInstance = null
-let allData = null
-let index = 0
-let timerId = null
-
+// 钩子
 onMounted(() => {
   initChart()
   // 发送数据给服务器
-  proxy.$socket.send({
+  socket?.send({
     action: 'getData',
     socketType: fileName,
     chartName: 'stock',
@@ -39,17 +55,20 @@ onMounted(() => {
   })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
+  // 注册回调函数
+  socket?.registerCallBack(fileName, getData)
 })
 
 onUnmounted(() => {
+  if (timerId) clearInterval(timerId)
   window.removeEventListener('resize', screenAdapter)
-  clearInterval(timerId)
-    // 取消回调函数
-  proxy.$socket.unRegisterCallBack(fileName)
+  // 取消回调函数
+  socket?.unRegisterCallBack(fileName)
 })
 
 function initChart() {
-  chartInstance = proxy.$echarts.init(stock_ref.value, theme.value)
+  if (!echarts || !stock_ref.value) return
+  chartInstance = echarts.init(stock_ref.value, theme.value)
   const initOption = {
     title: {
       text: '库存销售量',
@@ -58,21 +77,23 @@ function initChart() {
     },
   }
   chartInstance.setOption(initOption)
+
+  // 鼠标事件监听
   chartInstance.on('mouseover', () => {
-    clearInterval(timerId)
+    if (timerId) clearInterval(timerId)
   })
   chartInstance.on('mouseout', startInterval)
 }
 
-async function getData(ret) {
+async function getData(ret: StockItem[]) {
   // const { data: ret } = await proxy.$http.get('stock')
-  allData = ret
-
+  allData.value = ret
   updateChart()
   startInterval()
 }
 
 function updateChart() {
+  if (!chartInstance || !echarts) return
   const colorArr = [
     ['#dd6b66', '#fc97af'],
     ['#0098d9', '#a5e7f0'],
@@ -80,7 +101,7 @@ function updateChart() {
     ['#22c3aa', '#87f7cf'],
     ['#71669e', '#b6a2de'],
   ]
-  const showArr = allData.slice(index * 5, index * 5 + 5)
+  const showArr = allData.value.slice(index * 5, index * 5 + 5)
   const seriesArr = showArr.map((item, index) => {
     let x = 25
     let y = 35
@@ -100,7 +121,7 @@ function updateChart() {
           name: item.name + '\n' + item.sales,
           value: item.sales,
           itemStyle: {
-            color: new proxy.$echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
               {
                 offset: 0,
                 color: colorArr[index][0],
@@ -130,10 +151,11 @@ function updateChart() {
   const dataOption = {
     series: seriesArr,
   }
-  chartInstance.setOption(dataOption)
+  chartInstance?.setOption(dataOption)
 }
 
 function screenAdapter() {
+  if (!chartInstance || !stock_ref.value) return
   let size = (stock_ref.value.offsetWidth / 100) * 3.6
   // map方法中，无法对空数组进行处理，会自动跳过，返回的仍然是空槽数组，改用Array.from函数解决
   // let adapterSeriesArr = new Array(5).map(() => {
@@ -169,7 +191,7 @@ function startInterval() {
   if (timerId) clearInterval(timerId)
   timerId = setInterval(() => {
     index++
-    if (index >= allData.length / 5) index = 0
+    if (index >= allData.value.length / 5) index = 0
     updateChart()
   }, 5000)
 }

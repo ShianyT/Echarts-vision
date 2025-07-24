@@ -11,48 +11,76 @@
   </div>
 </template>
 
-<script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { getThemeValue } from '@/utils/theme_utils'
-// 获取theme的数据
 import { useThemeStore } from '@/stores/theme'
+
+// ================= 类型声明 =================
+// 热销商品子项类型
+interface HotChild {
+  name: string
+  value: number
+  children?: HotChild[]
+}
+// 热销商品类型
+interface HotType {
+  name: string
+  children: HotChild[]
+}
+// socket 类型
+interface SocketType {
+  registerCallBack: (key: string, cb: (data: any) => void) => void
+  unRegisterCallBack: (key: string) => void
+  send: (data: any) => void
+}
+
+// ================= inject全局依赖 =================
+const echarts = inject('echarts') as typeof import('echarts') | undefined
+const socket = inject('socket') as SocketType | undefined
+
+// ================= 响应式变量 =================
+const hot_ref = ref<HTMLElement | null>(null)
+let chartInstance: import('echarts').ECharts | null = null
+const allData = ref<HotType[]>([])
+const typeIndex = ref<number>(0)
+const size = ref<number>(0)
+
+// 获取theme的数据
 const theme = computed(() => useThemeStore().theme)
-// 监听主题theme
-watch(theme, () => {
-  chartInstance.dispose() // 销毁当前图表
-  initChart() // 重新初始化图表
-  screenAdapter() // 重新适配屏幕
-  updateChart() // 更新图表
-})
-
-const { proxy } = getCurrentInstance()
 // 获取文件名，注册回调函数
-const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
-proxy.$socket.registerCallBack(fileName, getData)
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '') || ''
 
-const hot_ref = ref(null)
-let chartInstance = null
-let allData = ref(null)
-let typeIndex = ref(0)
-let secondTitleName = computed(() => {
-  if (!allData.value) return ''
+// 显示的二级标题
+const secondTitleName = computed(() => {
+  if (!allData.value.length) return ''
   return allData.value[typeIndex.value].name
 })
-
-let size = ref(0)
 
 // 动态绑定样式
 const comStyle = computed(() => {
   return {
     fontSize: size.value + 'px',
-    color: getThemeValue(theme.value).titleColor,
+    color: getThemeValue(theme.value as 'chalk' | 'vintage').titleColor,
   }
 })
 
+// 监听主题theme
+watch(theme, () => {
+  if (chartInstance) {
+    chartInstance?.dispose() // 销毁当前图表
+    chartInstance = null
+  }
+  initChart() // 重新初始化图表
+  screenAdapter() // 重新适配屏幕
+  updateChart() // 更新图表
+})
+
+// ================= 生命周期钩子 =================
 onMounted(() => {
   initChart()
   // 发送数据给服务器
-  proxy.$socket.send({
+  socket?.send({
     action: 'getData',
     socketType: fileName,
     chartName: 'hotproduct',
@@ -60,16 +88,20 @@ onMounted(() => {
   })
   screenAdapter()
   window.addEventListener('resize', screenAdapter)
+  // 注册回调函数
+  socket?.registerCallBack(fileName, getData)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
   // 取消回调函数
-  proxy.$socket.unRegisterCallBack(fileName)
+  socket?.unRegisterCallBack(fileName)
 })
 
+// ================= 图表初始化 =================
 function initChart() {
-  chartInstance = proxy.$echarts.init(hot_ref.value, theme.value)
+  if (!echarts || !hot_ref.value) return
+  if (!chartInstance) chartInstance = echarts.init(hot_ref.value, theme.value as any)
   const initOption = {
     title: {
       text: '热销商品销售额统计',
@@ -99,13 +131,16 @@ function initChart() {
   chartInstance.setOption(initOption)
 }
 
-async function getData(ret) {
+// ================= 数据获取回调 =================
+async function getData(ret: HotType[]) {
   // const { data: ret } = await proxy.$http.get('hotproduct')
   allData.value = ret
   updateChart()
 }
 
+// ================= 图表数据更新 =================
 function updateChart() {
+  if (!chartInstance || !allData.value.length) return
   const typeData = allData.value[typeIndex.value].children
   const nameArr = typeData.map((item) => item.name)
 
@@ -114,17 +149,17 @@ function updateChart() {
       data: nameArr,
     },
     tooltip: {
-      formatter: (arg) => {
+      formatter: (arg: any) => {
+        // 保留原有注释
         const arr = arg.data.children
         let sun = 0
-        arr.forEach((item) => {
+        arr.forEach((item: HotChild) => {
           sun += item.value
         })
         let str = ''
-        arr.forEach((item) => {
+        arr.forEach((item: HotChild) => {
           str += `${item.name} : ${((item.value / sun) * 100).toFixed(2)}%<br/>`
         })
-
         return str
       },
     },
@@ -137,9 +172,10 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
+// ================= 屏幕自适应 =================
 function screenAdapter() {
+  if (!chartInstance || !hot_ref.value) return
   size.value = (hot_ref.value.offsetWidth / 100) * 3.6
-
   const adapterOption = {
     title: {
       textStyle: {
@@ -175,9 +211,10 @@ function screenAdapter() {
   chartInstance.resize()
 }
 
+// ================= 切换事件 =================
 function switchLeft() {
   typeIndex.value--
-  if (typeIndex.value < 0) typeIndex.value = allData.value.length
+  if (typeIndex.value < 0) typeIndex.value = allData.value.length - 1 // 修正越界
   updateChart()
 }
 
@@ -186,6 +223,7 @@ function switchRight() {
   if (typeIndex.value >= allData.value.length) typeIndex.value = 0
   updateChart()
 }
+
 defineExpose({
   screenAdapter,
 })

@@ -4,37 +4,49 @@
   </div>
 </template>
 
-<script setup>
-import { ref, getCurrentInstance, onMounted, onUnmounted, computed, watch } from 'vue'
-// 获取theme的数据
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+
+// ================= 类型声明 =================
+interface RankItem {
+  name: string
+  value: number
+}
+interface SocketType {
+  registerCallBack: (key: string, cb: (data: any) => void) => void
+  unRegisterCallBack: (key: string) => void
+  send: (data: any) => void
+}
+
+// ================= inject全局依赖 =================
+const echarts = inject('echarts') as typeof import('echarts') | undefined
+const socket = inject('socket') as SocketType | undefined
+
+// ================= 响应式变量 =================
+const rank_ref = ref<HTMLElement | null>(null)
+let chartInstance: import('echarts').ECharts | null = null
+const allData = ref<RankItem[]>([])
+let startValue = 0
+let endValue = startValue + 9
+let timerId: ReturnType<typeof setInterval> | null = null
+
 const theme = computed(() => useThemeStore().theme)
+const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '') || ''
+
 // 监听主题theme
 watch(theme, () => {
-  chartInstance.dispose() // 销毁当前图表
+  chartInstance?.dispose() // 销毁当前图表
   initChart() // 重新初始化图表
   screenAdapter() // 重新适配屏幕
   updateChart() // 更新图表
 })
-const { proxy } = getCurrentInstance()
 
-const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '')
-// 注册回调函数
-proxy.$socket.registerCallBack(fileName, getData)
-
-let chartInstance = null
-let allData = null
-// 区域缩放的起点和终点值
-let startValue = 0
-let endValue = startValue + 9
-let timerId = null
-
-const rank_ref = ref(null)
-
+// ================= 生命周期钩子 =================
 onMounted(() => {
   initChart()
   // 发送数据给服务器
-  proxy.$socket.send({
+  socket?.send({
     action: 'getData',
     socketType: fileName,
     chartName: 'rank',
@@ -42,17 +54,21 @@ onMounted(() => {
   })
   window.addEventListener('resize', screenAdapter)
   screenAdapter()
+  // 注册回调函数
+  socket?.registerCallBack(fileName, getData)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
-  clearInterval(timerId)
+  if (timerId) clearInterval(timerId)
   // 取消回调函数
-  proxy.$socket.unRegisterCallBack(fileName)
+  socket?.unRegisterCallBack(fileName)
 })
 
+// ================= 图表初始化 =================
 function initChart() {
-  chartInstance = proxy.$echarts.init(rank_ref.value, theme.value)
+  if (!echarts || !rank_ref.value) return
+  chartInstance = echarts.init(rank_ref.value, theme.value as any)
   const initOption = {
     title: {
       text: '地区销售排行',
@@ -91,24 +107,26 @@ function initChart() {
   }
   chartInstance.setOption(initOption)
   chartInstance.on('mouseover', () => {
-    clearInterval(timerId)
+    if (timerId) clearInterval(timerId)
   })
   chartInstance.on('mouseout', startInterval)
 }
 
-async function getData(ret) {
+// ================= 数据获取回调 =================
+async function getData(ret: RankItem[]) {
   // const { data: ret } = await proxy.$http.get('rank')
-  allData = ret
-  allData.sort((a, b) => {
-    return b.value - a.value
-  })
+
+  // 对数据进行排序,从大到小
+  allData.value = ret.sort((a, b) => b.value - a.value)
   updateChart()
   startInterval()
 }
 
+// ================= 图表数据更新 =================
 function updateChart() {
-  const nameArr = allData.map((item) => item.name)
-  const valueArr = allData.map((item) => item.value)
+  if (!chartInstance || !allData.value.length) return
+  const nameArr = allData.value.map((item) => item.name)
+  const valueArr = allData.value.map((item) => item.value)
   const dataOption = {
     xAxis: {
       data: nameArr,
@@ -123,28 +141,17 @@ function updateChart() {
       data: valueArr,
       itemStyle: {
         // color支持回调函数
-        color: (arg) => {
+        color: (arg: any) => {
+          if (!echarts) return '#e098c7'
           if (arg.dataIndex < 5) {
-            return new proxy.$echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              {
-                offset: 0,
-                color: '#e098c7',
-              },
-              {
-                offset: 1,
-                color: '#8fd3e8',
-              },
+            return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#e098c7' },
+              { offset: 1, color: '#8fd3e8' },
             ])
           } else {
-            return new proxy.$echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              {
-                offset: 0,
-                color: '#7bd9a5',
-              },
-              {
-                offset: 1,
-                color: '#8fd3e8',
-              },
+            return new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#7bd9a5' },
+              { offset: 1, color: '#8fd3e8' },
             ])
           }
         },
@@ -154,7 +161,9 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
+// ================= 屏幕自适应 =================
 function screenAdapter() {
+  if (!chartInstance || !rank_ref.value) return
   const size = (rank_ref.value.offsetWidth / 100) * 3.6
   const adapterOption = {
     title: {
@@ -188,12 +197,13 @@ function screenAdapter() {
   chartInstance.resize()
 }
 
+// ================= 自动轮播 =================
 function startInterval() {
-  if (!timerId) clearInterval(timerId)
+  if (timerId) clearInterval(timerId)
   timerId = setInterval(() => {
     startValue++
     endValue++
-    if (endValue >= allData.length) {
+    if (endValue >= allData.value.length) {
       startValue = 0
       endValue = startValue + 9
     }

@@ -3,7 +3,7 @@ const theme = {
     backgroundColor: '#161522',
     titleColor: '#ffffff',
     // 左上角图标路径
-    logoSrc: 'logo_dark.png',
+    logoSrc: 'tae_logo_dark.png',
     // 切换主题按钮路径
     themeSrc: 'qiehuan_dark.png',
     // 页面顶部的边框图片
@@ -12,7 +12,7 @@ const theme = {
   vintage: {
     backgroundColor: '#eeeeee',
     titleColor: '#333333',
-    logoSrc: 'logo_light2.png',
+    logoSrc: 'tae_logo_light.png',
     themeSrc: 'qiehuan_light.png',
     headerBorderSrc: 'header_border_light.png',
   },
