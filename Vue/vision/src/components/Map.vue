@@ -1,5 +1,5 @@
 <template>
-  <div class="com-container" @dblclick="revertMap">
+  <div class="com-container" :style="containerStyle" @dblclick="revertMap">
     <div class="com-chart" ref="map_ref"></div>
   </div>
 </template>
@@ -9,7 +9,8 @@ import axios from 'axios'
 import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { getProvinceMapInfo } from '@/utils/map_utils.js'
 import { useThemeStore } from '@/stores/theme'
-
+import { defineProps } from 'vue'
+import { useResize } from '@/utils/useResize'
 // ================= 类型声明 =================
 interface MapChild {
   name: string
@@ -31,21 +32,38 @@ const echarts = inject('echarts') as typeof import('echarts') | undefined
 const socket = inject('socket') as SocketType | undefined
 
 // ================= 响应式变量 =================
+// 适配模式：screen（大屏） normal（普通页面）
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'normal',
+    validator: (v: string) => ['screen', 'normal'].includes(v),
+  },
+})
+
 const map_ref = ref<HTMLElement | null>(null)
 let chartInstance: import('echarts').ECharts | null = null
 const allData = ref<MapDataType[]>([])
 // 对已点击的省份进行缓存
 const mapData: Record<string, boolean> = {}
+const containerFontSize = ref(16)
+const containerStyle = computed(() => ({
+  fontSize: containerFontSize.value + 'px',
+  color: '#222',
+}))
+
+const { handleResize } = useResize(map_ref)
 
 const theme = computed(() => useThemeStore().theme)
 const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue', '') || ''
 
 // 监听主题theme
+
 watch(theme, () => {
-  chartInstance?.dispose() // 销毁当前图表
-  initChart() // 重新初始化图表
-  screenAdapter() // 重新适配屏幕
-  updateChart() // 更新图表
+  chartInstance?.dispose()
+  initChart()
+  screenAdapter()
+  updateChart()
 })
 
 // ================= 生命周期钩子 =================
@@ -59,14 +77,11 @@ onMounted(() => {
     value: '',
   })
   window.addEventListener('resize', screenAdapter)
-  screenAdapter()
-  // 注册回调函数
   socket?.registerCallBack(fileName, getData)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
-  // 取消回调函数
   socket?.unRegisterCallBack(fileName)
 })
 
@@ -107,7 +122,6 @@ async function initChart() {
         },
         label: {
           color: '#222733',
-          fontSize: '16',
         },
       },
     },
@@ -123,6 +137,7 @@ async function initChart() {
   // 监听中国地图的点击事件
   // 没有类型声明的警告（TypeScript 的提示，不影响运行），如需彻底消除，可写一个 d.ts 类型声明文件
   chartInstance.on('click', handleMapClick)
+  screenAdapter()
 }
 
 // ================= 地图点击事件处理 =================
@@ -184,28 +199,19 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
-// ================= 屏幕自适应 =================
+// ================= 响应式适配 =================
 function screenAdapter() {
-  if (!chartInstance || !map_ref.value) return
-  const size = (map_ref.value.offsetWidth / 100) * 3.6
-  const adapterOption = {
-    title: {
-      textStyle: {
-        fontSize: size,
-      },
-    },
-    legend: {
-      itemGap: size / 2,
-      itemWidth: size / 2,
-      itemHeight: size / 2,
-      textStyle: {
-        fontSize: size / 2,
-      },
-    },
-  }
-  chartInstance.setOption(adapterOption)
-  chartInstance.resize()
+  containerFontSize.value = handleResize(chartInstance, props.mode)
+  chartInstance?.setOption({
+    title: { textStyle: { fontSize: 1.2 + 'em' } },
+    legend: { textStyle: { fontSize: 0.8 + 'em' }, itemGap: containerFontSize.value * 1.2 },
+    geo: { emphasis: { label: { fontSize: 0.8 + 'em' } } },
+  })
+  chartInstance?.resize()
 }
+
+// 暴露自适应方法给父组件（全屏切换时调用）
+defineExpose({ screenAdapter })
 
 // ================= 返回中国地图 =================
 function revertMap() {
@@ -217,10 +223,11 @@ function revertMap() {
   }
   chartInstance.setOption(revertOption)
 }
-
-defineExpose({
-  screenAdapter,
-})
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+.com-chart {
+  width: 100%;
+  height: 100%;
+}
+</style>

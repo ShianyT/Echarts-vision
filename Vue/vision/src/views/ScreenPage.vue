@@ -17,7 +17,10 @@
       <section class="screen-left">
         <div id="left-top" :class="[fullScreenStatus.trend ? 'fullscreen' : '']">
           <!-- 销量趋势图 -->
-          <Trend :ref="(el) => setRef(el, 'trend')"></Trend>
+          <Trend
+            :ref="(el) => setRef(el, 'trend')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Trend>
           <div class="resize">
             <!-- <span class="iconfont icon-compress-alt"></span> -->
             <span
@@ -31,7 +34,10 @@
         </div>
         <div id="left-bottom" :class="[fullScreenStatus.seller ? 'fullscreen' : '']">
           <!-- 商家销售金额图表 -->
-          <Seller :ref="(el) => setRef(el, 'seller')"></Seller>
+          <Seller
+            :ref="(el) => setRef(el, 'seller')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Seller>
           <div class="resize">
             <span
               @click="changeSize('seller')"
@@ -47,7 +53,10 @@
         <div id="middle-top" :class="[fullScreenStatus.map ? 'fullscreen' : '']">
           <!-- 商家分布图表 -->
           <!-- 通过 ​​动态绑定 ref 函数​​ 和 ​​响应式对象​​ 自动收集所有普通标签的引用 -->
-          <Map :ref="(el) => setRef(el, 'map')"></Map>
+          <Map
+            :ref="(el) => setRef(el, 'map')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Map>
           <div class="resize">
             <span
               @click="changeSize('map')"
@@ -57,7 +66,10 @@
         </div>
         <div id="middle-bottom" :class="[fullScreenStatus.rank ? 'fullscreen' : '']">
           <!-- 地区销量排行图标 -->
-          <Rank :ref="(el) => setRef(el, 'rank')"></Rank>
+          <Rank
+            :ref="(el) => setRef(el, 'rank')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Rank>
           <div class="resize">
             <span
               @click="changeSize('rank')"
@@ -69,7 +81,10 @@
       <section class="screen-right">
         <div id="right-top" :class="[fullScreenStatus.hot ? 'fullscreen' : '']">
           <!-- 热销商品占比图表 -->
-          <Hot :ref="(el) => setRef(el, 'hot')"></Hot>
+          <Hot
+            :ref="(el) => setRef(el, 'hot')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Hot>
           <div class="resize">
             <span
               @click="changeSize('hot')"
@@ -79,7 +94,10 @@
         </div>
         <div id="right-bottom" :class="[fullScreenStatus.stock ? 'fullscreen' : '']">
           <!-- 库存销量分析图表 -->
-          <Stock :ref="(el) => setRef(el, 'stock')"></Stock>
+          <Stock
+            :ref="(el) => setRef(el, 'stock')"
+            :mode="fullScreenStatus.hot ? 'normal' : 'screen'"
+          ></Stock>
           <div class="resize">
             <span
               @click="changeSize('stock')"

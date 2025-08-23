@@ -1,6 +1,6 @@
 <!-- 商家销量统计的横向柱状图 -->
 <template>
-  <div class="com-container">
+  <div class="com-container" :style="containerStyle">
     <div class="com-chart" ref="seller_ref"></div>
   </div>
 </template>
@@ -8,6 +8,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed, watch, inject } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useResize } from '@/utils/useResize'
+// 适配模式：screen（大屏） normal（普通页面）
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'normal',
+    validator: (v: string) => ['screen', 'normal'].includes(v),
+  },
+})
 
 // ================= 类型声明 =================
 interface SellerItem {
@@ -26,6 +35,12 @@ const socket = inject('socket') as SocketType | undefined
 
 // ================= 响应式变量 =================
 const seller_ref = ref<HTMLElement | null>(null)
+const containerFontSize = ref(16)
+const containerStyle = computed(() => ({
+  fontSize: containerFontSize.value + 'px',
+  color: 'inherit',
+}))
+const { handleResize } = useResize(seller_ref)
 let chartInstance: import('echarts').ECharts | null = null
 const allData = ref<SellerItem[]>([])
 let currentPage = 1 // 当前显示的页数
@@ -192,57 +207,38 @@ function startInterval() {
   }, 3000)
 }
 
-// ================= 浏览器发生大小变化适配器 =================
+// ================= 响应式适配 =================
 function screenAdapter() {
-  if (!chartInstance || !seller_ref.value) return
-  const size = (seller_ref.value.offsetWidth / 100) * 3.6
-  // 分辨率大小相关配置项
-  const adapterOption = {
+  containerFontSize.value = handleResize(chartInstance, props.mode)
+  chartInstance?.setOption({
     title: {
-      // 字体大小和位置
-      textStyle: {
-        fontSize: size,
-      },
+      textStyle: { fontSize: '1.2em' },
     },
     xAxis: {
-      axisLabel: {
-        fontSize: size / 2.8,
-      },
-      nameTextStyle: {
-        fontSize: size / 2.5,
-        color: '#aaaaaa',
-      },
+      axisLabel: { fontSize: '1em' },
+      nameTextStyle: { fontSize: '1em', color: '#aaaaaa' },
     },
     yAxis: {
-      axisLabel: {
-        fontSize: size / 2,
-      },
+      axisLabel: { fontSize: '1em' },
     },
-    // 提示框tooltip
     tooltip: {
       axisPointer: {
         lineStyle: {
-          width: size,
+          width: containerFontSize.value,
         },
       },
     },
     series: [
       {
-        // 柱状条目的宽度
-        barWidth: size,
+        barWidth: containerFontSize.value,
         itemStyle: {
-          // 柱状条目的圆角设置
-          borderRadius: [0, size / 2, size / 2, 0],
+          borderRadius: [0, containerFontSize.value / 2, containerFontSize.value / 2, 0],
         },
-        label: {
-          fontSize: size / 2.8,
-        },
+        label: { fontSize: '1em' },
       },
     ],
-  }
-  chartInstance.setOption(adapterOption)
-  // 需手动调用实例对象的resize方法才能实时更新
-  chartInstance.resize()
+  })
+  chartInstance?.resize()
 }
 defineExpose({
   screenAdapter,

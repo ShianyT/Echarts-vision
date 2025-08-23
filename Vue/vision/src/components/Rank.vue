@@ -1,12 +1,30 @@
 <template>
-  <div class="com-container">
+  <div class="com-container" :style="containerStyle">
     <div class="com-chart" ref="rank_ref"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, inject, defineProps } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useResize } from '@/utils/useResize'
+// 适配模式：screen（大屏） normal（普通页面）
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'normal',
+    validator: (v: string) => ['screen', 'normal'].includes(v),
+  },
+})
+
+const rank_ref = ref<HTMLElement | null>(null)
+const containerFontSize = ref(16)
+const containerStyle = computed(() => ({
+  fontSize: containerFontSize.value + 'px',
+  color: 'inherit',
+}))
+
+const { handleResize } = useResize(rank_ref)
 
 // ================= 类型声明 =================
 interface RankItem {
@@ -24,7 +42,6 @@ const echarts = inject('echarts') as typeof import('echarts') | undefined
 const socket = inject('socket') as SocketType | undefined
 
 // ================= 响应式变量 =================
-const rank_ref = ref<HTMLElement | null>(null)
 let chartInstance: import('echarts').ECharts | null = null
 const allData = ref<RankItem[]>([])
 let startValue = 0
@@ -36,16 +53,13 @@ const fileName = import.meta.url.split('?')[0].split('/').pop()?.replace('.vue',
 
 // 监听主题theme
 watch(theme, () => {
-  chartInstance?.dispose() // 销毁当前图表
-  initChart() // 重新初始化图表
-  screenAdapter() // 重新适配屏幕
-  updateChart() // 更新图表
+  chartInstance?.dispose()
+  initChart()
 })
 
 // ================= 生命周期钩子 =================
 onMounted(() => {
   initChart()
-  // 发送数据给服务器
   socket?.send({
     action: 'getData',
     socketType: fileName,
@@ -53,15 +67,12 @@ onMounted(() => {
     value: '',
   })
   window.addEventListener('resize', screenAdapter)
-  screenAdapter()
-  // 注册回调函数
   socket?.registerCallBack(fileName, getData)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', screenAdapter)
   if (timerId) clearInterval(timerId)
-  // 取消回调函数
   socket?.unRegisterCallBack(fileName)
 })
 
@@ -110,6 +121,7 @@ function initChart() {
     if (timerId) clearInterval(timerId)
   })
   chartInstance.on('mouseout', startInterval)
+  screenAdapter()
 }
 
 // ================= 数据获取回调 =================
@@ -161,40 +173,17 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
-// ================= 屏幕自适应 =================
+// ================= 响应式适配 =================
 function screenAdapter() {
-  if (!chartInstance || !rank_ref.value) return
-  const size = (rank_ref.value.offsetWidth / 100) * 3.6
-  const adapterOption = {
-    title: {
-      textStyle: {
-        fontSize: size,
-      },
-    },
-    xAxis: {
-      axisLabel: {
-        fontSize: size / 2.5,
-      },
-    },
-    yAxis: {
-      axisLabel: {
-        fontSize: size / 2.8,
-      },
-      nameTextStyle: {
-        fontSize: size / 2.5,
-      },
-    },
-    series: [
-      {
-        barWidth: size,
-        itemStyle: {
-          borderRadius: [size / 2, size / 2, 0, 0],
-        },
-      },
-    ],
-  }
-  chartInstance.setOption(adapterOption)
-  chartInstance.resize()
+  containerFontSize.value = handleResize(chartInstance, props.mode)
+  chartInstance?.setOption({
+    title: { textStyle: { fontSize: 1.2 + 'em' } },
+    xAxis: { axisLabel: { fontSize: 0.8 + 'em' } },
+    yAxis: { axisLabel: { fontSize: 0.8 + 'em' }, nameTextStyle: { fontSize: 0.8 + 'em' } },
+    legend: { textStyle: { fontSize: 1 + 'em' }, itemGap: containerFontSize.value * 1.2 },
+    series: [{ barWidth: containerFontSize.value, label: { fontSize: 1 + 'em' } }],
+  })
+  chartInstance?.resize()
 }
 
 // ================= 自动轮播 =================
@@ -211,9 +200,12 @@ function startInterval() {
   }, 2000)
 }
 
-defineExpose({
-  screenAdapter,
-})
+defineExpose({ screenAdapter })
 </script>
 
-<style lang="less" scoped></style>
+<style lang="less" scoped>
+.com-chart {
+  width: 100%;
+  height: 100%;
+}
+</style>

@@ -1,20 +1,18 @@
 <template>
-  <div class="com-container">
+  <div class="com-container" :style="containerStyle">
     <div class="com-chart" ref="hot_ref"></div>
-    <span class="iconfont switch-icon switch-left" @click="switchLeft()" :style="comStyle"
-      >&#xe6ef;
-    </span>
-    <span class="iconfont switch-icon switch-right" @click="switchRight()" :style="comStyle"
-      >&#xe6ed;</span
-    >
-    <div class="second-title" :style="comStyle">{{ secondTitleName }}</div>
+    <span class="iconfont switch-icon switch-left" @click="switchLeft()">&#xe6ef;</span>
+    <span class="iconfont switch-icon switch-right" @click="switchRight()">&#xe6ed;</span>
+    <div class="second-title">{{ secondTitleName }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+// 暴露自适应方法给父组件（全屏切换时调用）
 import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { getThemeValue } from '@/utils/theme_utils'
 import { useThemeStore } from '@/stores/theme'
+import { defineProps } from 'vue'
 
 // ================= 类型声明 =================
 // 热销商品子项类型
@@ -44,7 +42,6 @@ const hot_ref = ref<HTMLElement | null>(null)
 let chartInstance: import('echarts').ECharts | null = null
 const allData = ref<HotType[]>([])
 const typeIndex = ref<number>(0)
-const size = ref<number>(0)
 
 // 获取theme的数据
 const theme = computed(() => useThemeStore().theme)
@@ -57,13 +54,24 @@ const secondTitleName = computed(() => {
   return allData.value[typeIndex.value].name
 })
 
-// 动态绑定样式
-const comStyle = computed(() => {
-  return {
-    fontSize: size.value + 'px',
-    color: getThemeValue(theme.value as 'chalk' | 'vintage').titleColor,
-  }
+// 适配模式：screen（大屏） normal（普通页面）
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'normal',
+    validator: (v: string) => ['screen', 'normal'].includes(v),
+  },
 })
+
+// 局部rem方案：可根据需要自定义fontSize，默认1em=16px
+const containerFontSize = ref(16) // 可根据父容器传参或自适应
+const containerStyle = computed(() => ({
+  fontSize: containerFontSize.value + 'px',
+  color: getThemeValue(theme.value as 'chalk' | 'vintage').titleColor,
+}))
+
+import { useResize } from '@/utils/useResize'
+const { handleResize } = useResize(hot_ref)
 
 // 监听主题theme
 watch(theme, () => {
@@ -72,7 +80,7 @@ watch(theme, () => {
     chartInstance = null
   }
   initChart() // 重新初始化图表
-  screenAdapter() // 重新适配屏幕
+  // rem自适应已交由全局处理
   updateChart() // 更新图表
 })
 
@@ -86,16 +94,15 @@ onMounted(() => {
     chartName: 'hotproduct',
     value: '',
   })
-  screenAdapter()
-  window.addEventListener('resize', screenAdapter)
   // 注册回调函数
   socket?.registerCallBack(fileName, getData)
+  window.addEventListener('resize', screenAdapter)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', screenAdapter)
   // 取消回调函数
   socket?.unRegisterCallBack(fileName)
+  window.removeEventListener('resize', screenAdapter)
 })
 
 // ================= 图表初始化 =================
@@ -129,6 +136,7 @@ function initChart() {
     ],
   }
   chartInstance.setOption(initOption)
+  screenAdapter()
 }
 
 // ================= 数据获取回调 =================
@@ -172,45 +180,6 @@ function updateChart() {
   chartInstance.setOption(dataOption)
 }
 
-// ================= 屏幕自适应 =================
-function screenAdapter() {
-  if (!chartInstance || !hot_ref.value) return
-  size.value = (hot_ref.value.offsetWidth / 100) * 3.6
-  const adapterOption = {
-    title: {
-      textStyle: {
-        fontSize: size.value,
-      },
-    },
-    legend: {
-      textStyle: {
-        fontSize: size.value / 1.6,
-      },
-      itemWidth: size.value / 1.6,
-      itemHeight: size.value,
-      itemGap: size.value / 1.2,
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: size.value * 3.5,
-        emphasis: {
-          label: {
-            textStyle: {
-              fontSize: size.value / 2,
-            },
-          },
-          labelLine: {
-            show: false,
-          },
-        },
-      },
-    ],
-  }
-  chartInstance.setOption(adapterOption)
-  chartInstance.resize()
-}
-
 // ================= 切换事件 =================
 function switchLeft() {
   typeIndex.value--
@@ -224,33 +193,45 @@ function switchRight() {
   updateChart()
 }
 
-defineExpose({
-  screenAdapter,
-})
+// ================= 响应式适配 =================
+function screenAdapter() {
+  containerFontSize.value = handleResize(chartInstance, props.mode)
+  chartInstance?.setOption({
+    title: { textStyle: { fontSize: 1.2 + 'em' } },
+    legend: { textStyle: { fontSize: 0.8 + 'em' }, itemGap: containerFontSize.value * 1.2 },
+    
+  })
+  chartInstance?.resize()
+}
+
+// 暴露自适应方法给父组件（全屏切换时调用）
+defineExpose({ screenAdapter })
 </script>
 
 <style lang="less" scoped>
+.com-chart {
+  width: 100%;
+  height: 100%;
+}
 .switch-icon {
   position: absolute;
   z-index: 10;
   top: 55%;
   color: white;
-  font-size: 26px;
+  font-size: 1.6em;
   cursor: pointer;
 }
-
 .switch-left {
   left: 5%;
 }
 .switch-right {
   right: 5%;
 }
-
 .second-title {
   position: absolute;
   bottom: 10%;
   right: 10%;
   color: white;
-  font-size: 20px;
+  font-size: 1.2em;
 }
 </style>

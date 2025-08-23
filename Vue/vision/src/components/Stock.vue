@@ -1,5 +1,5 @@
 <template>
-  <div class="com-container">
+  <div class="com-container" :style="containerStyle">
     <div class="com-chart" ref="stock_ref"></div>
   </div>
 </template>
@@ -7,6 +7,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { useThemeStore } from '@/stores/theme'
+import { useResize } from '@/utils/useResize'
+// 适配模式：screen（大屏） normal（普通页面）
+const props = defineProps({
+  mode: {
+    type: String,
+    default: 'normal',
+    validator: (v: string) => ['screen', 'normal'].includes(v),
+  },
+})
 
 // ========类型声明===========
 interface StockItem {
@@ -25,8 +34,14 @@ interface SocketType {
 const echarts = inject('echarts') as typeof import('echarts') | undefined
 const socket = inject('socket') as SocketType | undefined
 
-// 响应式变量
 const stock_ref = ref<HTMLElement | null>(null)
+const containerFontSize = ref(16)
+const containerStyle = computed(() => ({
+  fontSize: containerFontSize.value + 'px',
+  color: 'inherit',
+}))
+const { handleResize } = useResize(stock_ref)
+
 let chartInstance: import('echarts').ECharts | null = null
 let allData = ref<StockItem[]>([])
 let index = 0
@@ -154,37 +169,23 @@ function updateChart() {
   chartInstance?.setOption(dataOption)
 }
 
+// ================= 响应式适配 =================
 function screenAdapter() {
-  if (!chartInstance || !stock_ref.value) return
-  let size = (stock_ref.value.offsetWidth / 100) * 3.6
-  // map方法中，无法对空数组进行处理，会自动跳过，返回的仍然是空槽数组，改用Array.from函数解决
-  // let adapterSeriesArr = new Array(5).map(() => {
-  //   return {
-  //     radius: [this.size, this.size * 1.5],
-  //   }
-  // })
-  // {length:5}只是一个普通的对象，但在from函数中会将其转换成一个长度为5的数组
-  let adapterSeriesArr = Array.from({ length: 5 }, () => {
-    return {
-      type: 'pie',
-      radius: [size * 2.3, size * 2],
-      label: {
-        fontSize: size / 2,
-        lineHeight: size / 1.5,
-      },
-    }
-  })
-
-  const adapterOption = {
+  containerFontSize.value = handleResize(chartInstance, props.mode)
+  chartInstance?.setOption({
     title: {
-      textStyle: {
-        fontSize: size,
-      },
+      textStyle: { fontSize: '1.2em' },
     },
-    series: adapterSeriesArr,
-  }
-  chartInstance.setOption(adapterOption)
-  chartInstance.resize()
+    series: Array.from({ length: 5 }, () => ({
+      type: 'pie',
+      radius: [containerFontSize.value * 2.3, containerFontSize.value * 2],
+      label: {
+        fontSize: '0.6em',
+        lineHeight: containerFontSize.value / 1.2,
+      },
+    })),
+  })
+  chartInstance?.resize()
 }
 
 function startInterval() {
